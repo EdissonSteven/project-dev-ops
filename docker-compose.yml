@@ -1,7 +1,9 @@
 services:
   # ========== JENKINS CI/CD ==========
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
     container_name: retailtech-jenkins
     user: root
     ports:

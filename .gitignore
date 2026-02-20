@@ -1,0 +1,9 @@
+# Jenkins runtime data
+jenkins/jobs/
+
+# Environment files
+.env
+
+# OS
+.DS_Store
+Thumbs.db

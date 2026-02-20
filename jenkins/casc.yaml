@@ -3,34 +3,23 @@ jenkins:
     local:
       allowsSignup: false
       users:
-       - id: "admin"
-         password: "admin123"
-         name: "Administrator"
+        - id: "admin"
+          password: "admin123"
+          name: "Administrator"
 
   authorizationStrategy:
-    globalMatrix:
-      permissions:
-        - "Overall/Administer:admin"
-        - "Overall/Read:authenticated"
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
 
-  # Configuración global
-  systemMessage: "RetailTech DevOps CI/CD Environment"
+  systemMessage: "RetailTech DevOps CI/CD Environment 🚀"
   numExecutors: 2
   mode: NORMAL
-  
-  # Plugins requeridos se instalan automáticamente
-  installStateName: "NEW"
+
 
 credentials:
   system:
     domainCredentials:
       - credentials:
-          - usernamePassword:
-              scope: GLOBAL
-              id: "dockerhub-credentials"
-              username: "retailtech"
-              password: "changeme"
-              description: "Docker Hub credentials"
           - string:
               scope: GLOBAL
               id: "sonarqube-token"
@@ -40,22 +29,31 @@ credentials:
 jobs:
   - script: >
       pipelineJob('product-service-cd') {
-        description('CD Pipeline for RetailTech Product Service')
+        description('🚀 CD Pipeline - RetailTech Product Service')
+        keepDependencies(false)
         definition {
           cpsScm {
             scm {
               git {
                 remote {
-                  url('https://github.com/retailtech/product-service.git')
+                  url('https://github.com/EdissonSteven/project-dev-ops.git')
+                  credentials('')
                 }
                 branches('*/main', '*/develop')
+                extensions {
+                  wipeOutWorkspace()
+                }
               }
             }
-            scriptPath('Jenkinsfile')
+            scriptPath('lab3-reatiltech-app/Jenkinsfile')
+            lightweight(false)
           }
         }
         triggers {
-          githubPush()
+          scm('H/2 * * * *')
+        }
+        logRotator {
+          numToKeep(10)
         }
       }
 
@@ -75,15 +73,6 @@ tool:
                     id: "18.19.0"
                     npmPackagesRefreshHours: 72
 
-  dockerTool:
-    installations:
-      - name: "docker"
-        properties:
-          - installSource:
-              installers:
-                - fromDocker:
-                    version: "latest"
-
 unclassified:
   location:
     url: "http://localhost:8080/"
@@ -94,3 +83,8 @@ unclassified:
       - name: "SonarQube"
         serverUrl: "http://sonarqube:9000"
         credentialsId: "sonarqube-token"
+
+  gitHubPluginConfig:
+    configs:
+      - name: "GitHub"
+        apiUrl: "https://api.github.com"

@@ -1,0 +1,155 @@
+name: CI Pipeline - RetailTech Product Service
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'lab3-reatiltech-app/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'lab3-reatiltech-app/**'
+
+env:
+  NODE_VERSION: '18.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/product-service
+  APP_DIR: lab3-reatiltech-app
+
+jobs:
+  # ─────────────────────────────────────────
+  # JOB 1 — Lint
+  # ─────────────────────────────────────────
+  lint:
+    name: 🔍 Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+  # ─────────────────────────────────────────
+  # JOB 2 — Tests
+  # ─────────────────────────────────────────
+  test:
+    name: 🧪 Tests & Coverage
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests with coverage
+        run: npm test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: ${{ env.APP_DIR }}/coverage/
+          retention-days: 7
+
+  # ─────────────────────────────────────────
+  # JOB 3 — Build & Push Docker image
+  # ─────────────────────────────────────────
+  build:
+    name: 🐳 Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ env.APP_DIR }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        run: |
+          echo "## 🐳 Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────
+  # JOB 4 — Pipeline summary
+  # ─────────────────────────────────────────
+  summary:
+    name: 📋 Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test, build]
+    if: always()
+    steps:
+      - name: Report status
+        run: |
+          echo "## 🚀 CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Tests | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.test.result }}" == "success" ]]; then
+            echo "✅ CI completado — Jenkins (CD) detectará el commit en ~2 min" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ CI falló" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
