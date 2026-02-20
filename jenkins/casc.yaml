@@ -1,0 +1,96 @@
+jenkins:
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+       - id: "admin"
+         password: "admin123"
+         name: "Administrator"
+
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:admin"
+        - "Overall/Read:authenticated"
+
+  # Configuración global
+  systemMessage: "RetailTech DevOps CI/CD Environment"
+  numExecutors: 2
+  mode: NORMAL
+  
+  # Plugins requeridos se instalan automáticamente
+  installStateName: "NEW"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "dockerhub-credentials"
+              username: "retailtech"
+              password: "changeme"
+              description: "Docker Hub credentials"
+          - string:
+              scope: GLOBAL
+              id: "sonarqube-token"
+              secret: "changeme"
+              description: "SonarQube authentication token"
+
+jobs:
+  - script: >
+      pipelineJob('product-service-cd') {
+        description('CD Pipeline for RetailTech Product Service')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/retailtech/product-service.git')
+                }
+                branches('*/main', '*/develop')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          githubPush()
+        }
+      }
+
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+
+  nodejs:
+    installations:
+      - name: "Node 18"
+        properties:
+          - installSource:
+              installers:
+                - nodeJSInstaller:
+                    id: "18.19.0"
+                    npmPackagesRefreshHours: 72
+
+  dockerTool:
+    installations:
+      - name: "docker"
+        properties:
+          - installSource:
+              installers:
+                - fromDocker:
+                    version: "latest"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+    adminAddress: "devops@retailtech.com"
+
+  sonarGlobalConfiguration:
+    installations:
+      - name: "SonarQube"
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonarqube-token"

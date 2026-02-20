@@ -3,18 +3,55 @@ const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const client = require('prom-client');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Prometheus metrics setup ────────────────────────────────
+const register = new client.Registry();
+client.collectDefaultMetrics({ register, prefix: 'retailtech_' });
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total de peticiones HTTP',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [register]
+});
+
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duración de peticiones HTTP en segundos',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
+  registers: [register]
+});
+
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false })); // Seguridad HTTP headers (CSP deshabilitado para Swagger UI)
-app.use(cors()); // CORS habilitado
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
 app.use(express.json());
+
+// Middleware de métricas HTTP
+app.use((req, res, next) => {
+  const end = httpRequestDuration.startTimer();
+  res.on('finish', () => {
+    const route = req.route ? req.route.path : req.path;
+    httpRequestsTotal.labels(req.method, route, res.statusCode).inc();
+    end({ method: req.method, route, status_code: res.statusCode });
+  });
+  next();
+});
 
 // Documentación Swagger
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Endpoint de métricas para Prometheus
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
 // Mock database - productos de tecnología
 let products = [

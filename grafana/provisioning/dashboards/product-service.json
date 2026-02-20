@@ -1,0 +1,171 @@
+{
+  "title": "RetailTech - Product Service",
+  "uid": "retailtech-product-service",
+  "tags": ["retailtech", "nodejs"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "15s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Requests / seg",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "{{method}} {{route}} {{status_code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Latencia P95 (seg)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "P95 {{method}} {{route}}"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "P50 {{method}} {{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Total Requests (acumulado)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(http_requests_total)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Tasa de Errores (4xx + 5xx)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(http_requests_total{status_code=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Memoria Heap Node.js (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "retailtech_nodejs_heap_size_used_bytes / 1024 / 1024",
+          "legendFormat": "Heap usado"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "retailtech_nodejs_heap_size_total_bytes / 1024 / 1024",
+          "legendFormat": "Heap total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Requests por ruta",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (route) (http_requests_total)",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Event Loop Lag (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "retailtech_nodejs_eventloop_lag_seconds * 1000",
+          "legendFormat": "Event loop lag"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

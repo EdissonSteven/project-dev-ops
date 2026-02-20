@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scoop:*)",
+      "Bash(pacman:*)",
+      "Bash(export PATH=\"/c/Program Files \\(x86\\)/GnuWin32/bin:$PATH\")",
+      "Bash(make demo:*)"
+    ]
+  }
+}
