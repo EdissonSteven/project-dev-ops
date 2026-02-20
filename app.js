@@ -1,15 +1,20 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet()); // Seguridad HTTP headers
+app.use(helmet({ contentSecurityPolicy: false })); // Seguridad HTTP headers (CSP deshabilitado para Swagger UI)
 app.use(cors()); // CORS habilitado
 app.use(express.json());
+
+// Documentación Swagger
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mock database - productos de tecnología
 let products = [

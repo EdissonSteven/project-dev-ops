@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar dependencias de producción solamente
-RUN npm ci --only=production && \
+RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copiar código fuente
@@ -34,7 +34,7 @@ WORKDIR /app
 # Copiar dependencias y código desde builder
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --chown=nodejs:nodejs package*.json ./
-COPY --chown=nodejs:nodejs app.js ./
+COPY --chown=nodejs:nodejs app.js swagger.js ./
 
 # Cambiar a usuario no-root
 USER nodejs
