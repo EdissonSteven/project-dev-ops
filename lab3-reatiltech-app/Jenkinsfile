@@ -136,16 +136,28 @@ pipeline {
         // ──────────────────────────────────────────
             steps {
                 echo '💨 Smoke tests...'
-                sh """
-                    sleep 5
-                    curl -sf http://localhost:3000/health | grep -q 'UP' \
-                        && echo '✅ Health check OK' \
-                        || (echo '❌ Health check FALLÓ' && exit 1)
+                sh '''
+                    # Esperar a que el servicio arranque (retry)
+                    for i in $(seq 1 10); do
+                        response=$(curl -s http://retailtech-product-service:3000/health 2>/dev/null)
+                        if echo "$response" | grep -q "UP"; then
+                            echo "✅ Health check OK (intento $i): $response"
+                            break
+                        fi
+                        echo "Intento $i: servicio no listo, reintentando..."
+                        sleep 3
+                        [ $i -eq 10 ] && echo "❌ Health check FALLÓ tras 10 intentos" && exit 1
+                    done
 
-                    curl -sf http://localhost:3000/api/products | grep -q 'id' \
-                        && echo '✅ API products OK' \
-                        || (echo '❌ API products FALLÓ' && exit 1)
-                """
+                    # Test API products
+                    response=$(curl -s http://retailtech-product-service:3000/api/products)
+                    if echo "$response" | grep -q "id"; then
+                        echo "✅ API products OK"
+                    else
+                        echo "❌ API products FALLÓ: $response"
+                        exit 1
+                    fi
+                '''
             }
         }
     }
