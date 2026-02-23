@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetailTech DevOps Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 36px; }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    header p { color: #94a3b8; font-size: 0.95rem; }
+    .badge {
+      display: inline-block;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 10px;
+    }
+
+    /* ── Pipeline bar ── */
+    .pipeline-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+      row-gap: 12px;
+    }
+    .stage { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .stage-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+    .stage-box.s1 { border-color: #3b82f6; color: #60a5fa; }
+    .stage-box.s2 { border-color: #3b82f6; color: #60a5fa; }
+    .stage-box.s3 { border-color: #10b981; color: #34d399; }
+    .stage-box.s4 { border-color: #f59e0b; color: #fbbf24; }
+    .stage-box.s5 { border-color: #8b5cf6; color: #a78bfa; }
+    .stage-box.s6 { border-color: #ef4444; color: #f87171; }
+    .arrow { color: #334155; font-size: 1.1rem; padding: 0 4px; margin-bottom: 20px; }
+    .stage-label { font-size: 0.68rem; color: #475569; }
+
+    /* ── Cards ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto 40px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color .2s, transform .2s;
+    }
+    .card:hover { border-color: #60a5fa; transform: translateY(-2px); }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #4ade80;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #4ade8099;
+    }
+    .card h2 { font-size: 1rem; font-weight: 600; color: #f1f5f9; }
+    .card p { font-size: 0.82rem; color: #64748b; margin-bottom: 14px; line-height: 1.5; }
+    .links { display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .8; }
+    .btn-primary { background: #1d4ed8; color: #fff; }
+    .btn-ghost   { background: #0f172a; border: 1px solid #334155; color: #94a3b8; }
+    .cred {
+      margin-top: 10px;
+      font-size: 0.74rem;
+      color: #475569;
+      background: #0f172a;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: monospace;
+    }
+
+    /* ── Commands ── */
+    .cmd-section { max-width: 1100px; margin: 0 auto; }
+    .cmd-section h3 {
+      font-size: 0.85rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+    pre {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: "Fira Code", "Cascadia Code", monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      color: #c9d1d9;
+    }
+    .c  { color: #8b949e; }
+    .kw { color: #79c0ff; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <h1>🚀 RetailTech DevOps Environment</h1>
+    <p>Plataforma local de desarrollo, integración y despliegue continuo</p>
+    <span class="badge">Docker Compose · Jenkins · GitHub Actions · SonarQube · Prometheus · Grafana</span>
+  </header>
+
+  <!-- Pipeline bar -->
+  <div class="pipeline-bar">
+    <div class="stage"><div class="stage-box s1">📦 Push GitHub</div><span class="stage-label">trigger</span></div>
+    <span class="arrow">➡</span>
+    <div class="stage"><div class="stage-box s2">⚙ GitHub Actions CI</div><span class="stage-label">lint &amp; test</span></div>
+    <span class="arrow">➡</span>
+    <div class="stage"><div class="stage-box s3">✅ Tests (Jest)</div><span class="stage-label">cobertura</span></div>
+    <span class="arrow">➡</span>
+    <div class="stage"><div class="stage-box s4">🔍 SonarQube</div><span class="stage-label">calidad</span></div>
+    <span class="arrow">➡</span>
+    <div class="stage"><div class="stage-box s5">🐳 Docker Build</div><span class="stage-label">imagen</span></div>
+    <span class="arrow">➡</span>
+    <div class="stage"><div class="stage-box s6">🚀 Deploy</div><span class="stage-label">Jenkins CD</span></div>
+  </div>
+
+  <!-- Services grid -->
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Product Service API</h2></div>
+      <p>Microservicio principal de gestión de productos (Node.js / Express)</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:3000/health"       target="_blank">Health Check</a>
+        <a class="btn btn-ghost"   href="http://localhost:3000/api/products" target="_blank">REST API</a>
+        <a class="btn btn-ghost"   href="http://localhost:3000/docs"         target="_blank">Swagger UI</a>
+        <a class="btn btn-ghost"   href="http://localhost:3000/metrics"      target="_blank">Métricas</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Jenkins CI/CD</h2></div>
+      <p>Servidor de integración y despliegue continuo. Job <code>product-service-cd</code> auto-configurado vía CasC.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:8080"                          target="_blank">Abrir Jenkins</a>
+        <a class="btn btn-ghost"   href="http://localhost:8080/job/product-service-cd/"  target="_blank">Ver Pipeline</a>
+      </div>
+      <div class="cred">admin / admin123</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>SonarQube</h2></div>
+      <p>Análisis estático de calidad de código, cobertura y detección de vulnerabilidades.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:9000" target="_blank">Abrir SonarQube</a>
+      </div>
+      <div class="cred">admin / admin &nbsp;→&nbsp; generar token para Jenkins</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Grafana</h2></div>
+      <p>Dashboards de visualización de métricas del product-service en tiempo real.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:3001"            target="_blank">Abrir Grafana</a>
+        <a class="btn btn-ghost"   href="http://localhost:3001/dashboards" target="_blank">Dashboards</a>
+      </div>
+      <div class="cred">admin / admin</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Prometheus</h2></div>
+      <p>Sistema de monitoreo y recolección de métricas con scraping cada 15 s.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:9090"         target="_blank">Abrir Prometheus</a>
+        <a class="btn btn-ghost"   href="http://localhost:9090/targets" target="_blank">Ver Targets</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Docker Registry</h2></div>
+      <p>Registro privado de imágenes Docker para el pipeline de Jenkins.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="http://localhost:5000/v2/_catalog" target="_blank">Catálogo</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="dot"></span><h2>Portainer</h2></div>
+      <p>Gestión visual de contenedores, volúmenes y redes Docker.</p>
+      <div class="links">
+        <a class="btn btn-primary" href="https://localhost:9443" target="_blank">Abrir Portainer</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Commands -->
+  <div class="cmd-section">
+    <h3>Comandos útiles</h3>
+    <pre><span class="c"># Levantar todo el stack</span>
+<span class="kw">make</span> start
+
+<span class="c"># Ejecutar demo completo</span>
+<span class="kw">make</span> demo
+
+<span class="c"># Ver logs de un servicio</span>
+<span class="kw">docker compose</span> logs -f jenkins
+<span class="kw">docker compose</span> logs -f product-service
+
+<span class="c"># Reiniciar un servicio</span>
+<span class="kw">docker compose</span> restart product-service
+
+<span class="c"># Ver estado de contenedores</span>
+<span class="kw">docker compose</span> ps
+
+<span class="c"># Detener todo</span>
+<span class="kw">docker compose</span> down</pre>
+  </div>
+
+</body>
+</html>
