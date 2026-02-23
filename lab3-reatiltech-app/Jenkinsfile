@@ -117,8 +117,15 @@ pipeline {
             steps {
                 echo '🚀 Desplegando nueva versión del product-service...'
                 sh """
-                    cd \$(pwd) && \
-                    docker compose up -d --no-deps --force-recreate product-service
+                    docker stop retailtech-product-service || true
+                    docker rm   retailtech-product-service || true
+                    docker run -d \
+                        --name retailtech-product-service \
+                        --network ${COMPOSE_NET} \
+                        -p 3000:3000 \
+                        -e NODE_ENV=production \
+                        -e PORT=3000 \
+                        ${LOCAL_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                 """
                 echo '✅ Deployment completado'
             }
