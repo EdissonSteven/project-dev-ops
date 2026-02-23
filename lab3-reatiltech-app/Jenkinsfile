@@ -118,7 +118,7 @@ pipeline {
                 echo '🚀 Desplegando nueva versión del product-service...'
                 sh """
                     cd \$(pwd) && \
-                    docker compose up -d --no-deps product-service
+                    docker compose up -d --no-deps --force-recreate product-service
                 """
                 echo '✅ Deployment completado'
             }
