@@ -1,5 +1,7 @@
 # 🚀 RetailTech Product Service
 
+
+
 Microservicio de catálogo de productos para RetailTech E-Commerce. Este proyecto demuestra la implementación de pipelines CI/CD modernos con GitHub Actions y Jenkins.
 
 ## 📋 Tabla de Contenidos
