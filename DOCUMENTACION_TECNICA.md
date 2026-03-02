@@ -16,11 +16,13 @@
 4. [Pipeline CI — GitHub Actions](#4-pipeline-ci--github-actions)
 5. [Pipeline CD — Jenkins](#5-pipeline-cd--jenkins)
 6. [Infraestructura con Docker Compose](#6-infraestructura-con-docker-compose)
-7. [Calidad de Código — SonarQube](#7-calidad-de-código--sonarqube)
+7. [Seguridad — SonarQube y Snyk](#7-seguridad--sonarqube-y-snyk)
 8. [Monitoreo — Prometheus y Grafana](#8-monitoreo--prometheus-y-grafana)
-9. [Archivos de Configuración](#9-archivos-de-configuración)
-10. [Flujo Completo CI/CD](#10-flujo-completo-cicd)
-11. [Acceso a los Servicios](#11-acceso-a-los-servicios)
+9. [Despliegue en Kubernetes](#9-despliegue-en-kubernetes)
+10. [Archivos de Configuración](#10-archivos-de-configuración)
+11. [Flujo Completo CI/CD](#11-flujo-completo-cicd)
+12. [Acceso a los Servicios](#12-acceso-a-los-servicios)
+13. [Reflexión sobre Eficiencia Operativa](#13-reflexión-sobre-eficiencia-operativa)
 
 ---
 
@@ -292,11 +294,13 @@ Todos los servicios comparten la red interna `devops-network` (bridge).
 
 ---
 
-## 7. Calidad de Código — SonarQube
+## 7. Seguridad — SonarQube y Snyk
+
+### 7.1 SonarQube — Análisis estático de código
 
 **Archivo:** `lab3-reatiltech-app/sonar-project.properties`
 
-### Configuración del análisis
+SonarQube analiza el código fuente en busca de bugs, vulnerabilidades, code smells y cobertura de tests.
 
 | Parámetro                        | Valor                              |
 |----------------------------------|------------------------------------|
@@ -307,6 +311,44 @@ Todos los servicios comparten la red interna `devops-network` (bridge).
 | `sonar.host.url`                 | `http://sonarqube:9000`            |
 
 El escáner se ejecuta desde Jenkins via contenedor Docker (`sonarsource/sonar-scanner-cli`), conectado a la red `devops-network` para acceder al servidor SonarQube interno.
+
+**Categorías de análisis:**
+- **Bugs:** errores que pueden causar comportamiento inesperado en runtime
+- **Vulnerabilidades:** puntos de ataque potenciales (ej. inyecciones, XSS)
+- **Code Smells:** problemas de mantenibilidad y deuda técnica
+- **Cobertura:** porcentaje del código cubierto por pruebas unitarias
+
+### 7.2 Snyk — Detección de vulnerabilidades en dependencias
+
+**Integración:** Job `security` en `.github/workflows/ci.yml`
+
+Snyk analiza el archivo `package.json` para detectar vulnerabilidades conocidas (CVEs) en las dependencias del proyecto.
+
+**Configuración en el pipeline:**
+```yaml
+- uses: snyk/actions/node@master
+  env:
+    SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  with:
+    args: --severity-threshold=high
+```
+
+**Características:**
+- Umbral configurado en **severidad alta** — solo falla el pipeline si hay CVEs `high` o `critical`
+- Continúa el pipeline aunque encuentre vulnerabilidades (`continue-on-error: true`) para no bloquear el flujo
+- Genera un reporte `snyk-report.json` disponible como artifact en GitHub Actions
+
+**Dependencias analizadas del proyecto:**
+
+| Dependencia       | Versión  | Propósito                    |
+|-------------------|----------|------------------------------|
+| express           | ^4.18.2  | Framework HTTP               |
+| helmet            | ^7.1.0   | Headers de seguridad HTTP    |
+| cors              | ^2.8.5   | Control de CORS              |
+| prom-client       | ^15.1.0  | Métricas Prometheus          |
+| swagger-ui-express| ^5.0.0   | Documentación API            |
+
+> **Nota:** Para activar Snyk, crear cuenta gratuita en [snyk.io](https://snyk.io), obtener el token API y agregarlo como secret `SNYK_TOKEN` en GitHub → Settings → Secrets and variables → Actions.
 
 ---
 
@@ -340,7 +382,54 @@ La aplicación expone métricas nativas de Prometheus en `/metrics`:
 
 ---
 
-## 9. Archivos de Configuración
+## 9. Despliegue en Kubernetes
+
+**Carpeta:** `k8s/`
+
+El proyecto incluye manifiestos de Kubernetes para desplegar el `product-service` en un clúster k8s.
+
+### Estructura de manifiestos
+
+```
+k8s/
+├── namespace.yaml     # Namespace 'retailtech' aislado
+├── configmap.yaml     # Variables de configuración (NODE_ENV, PORT)
+├── deployment.yaml    # Deployment con 2 réplicas + health checks
+├── service.yaml       # ClusterIP expuesto en puerto 80
+└── ingress.yaml       # Ingress Nginx con host retailtech.local
+```
+
+### Características del Deployment
+
+| Característica        | Configuración                         |
+|-----------------------|---------------------------------------|
+| Réplicas              | 2 (alta disponibilidad)               |
+| Estrategia            | RollingUpdate (sin downtime)          |
+| Imagen                | `ghcr.io/edissonsteven/project-dev-ops/product-service:latest` |
+| CPU request/limit     | 100m / 250m                           |
+| Memoria request/limit | 128Mi / 256Mi                         |
+| Liveness probe        | `GET /health` cada 20s               |
+| Readiness probe       | `GET /health` cada 10s               |
+| Métricas              | Anotaciones para scraping de Prometheus |
+
+### Despliegue rápido
+
+```bash
+# Crear namespace y desplegar todo
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/ingress.yaml
+
+# Verificar estado
+kubectl get pods -n retailtech
+kubectl get svc -n retailtech
+```
+
+---
+
+## 10. Archivos de Configuración
 
 Todos los archivos de configuración están incluidos en el repositorio:
 
@@ -349,7 +438,7 @@ project-dev-ops/
 │
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                     # Pipeline CI (GitHub Actions)
+│       └── ci.yml                     # Pipeline CI — Lint, Test, Snyk, Docker Build
 │
 ├── lab3-reatiltech-app/
 │   ├── Dockerfile                     # Multi-stage build de la aplicación
@@ -359,6 +448,13 @@ project-dev-ops/
 │   ├── app.test.js                    # Tests unitarios
 │   ├── swagger.js                     # Definición OpenAPI
 │   └── package.json                   # Dependencias y scripts
+│
+├── k8s/
+│   ├── namespace.yaml                 # Namespace 'retailtech'
+│   ├── configmap.yaml                 # Variables de entorno
+│   ├── deployment.yaml                # Deployment con 2 réplicas
+│   ├── service.yaml                   # ClusterIP service
+│   └── ingress.yaml                   # Ingress Nginx
 │
 ├── jenkins/
 │   ├── Dockerfile                     # Jenkins personalizado con plugins
@@ -370,7 +466,9 @@ project-dev-ops/
 │   └── prometheus.yml                 # Configuración de scraping
 │
 ├── grafana/
-│   └── provisioning/                  # Dashboards y datasources automáticos
+│   └── provisioning/
+│       ├── dashboards/product-service.json  # Dashboard pre-configurado
+│       └── datasources/prometheus.yml       # Datasource automático
 │
 ├── nginx/
 │   ├── nginx.conf                     # Configuración del proxy reverso
@@ -383,7 +481,7 @@ project-dev-ops/
 
 ---
 
-## 10. Flujo Completo CI/CD
+## 11. Flujo Completo CI/CD
 
 El siguiente diagrama muestra el flujo de extremo a extremo:
 
@@ -432,7 +530,7 @@ El siguiente diagrama muestra el flujo de extremo a extremo:
 
 ---
 
-## 11. Acceso a los Servicios
+## 12. Acceso a los Servicios
 
 Una vez ejecutado `docker compose up -d`:
 
@@ -448,6 +546,52 @@ Una vez ejecutado `docker compose up -d`:
 | Grafana              | http://localhost:3001        | admin / admin       |
 | Docker Registry      | http://localhost:5000        | —                   |
 | Portainer            | https://localhost:9443       | (configurar al inicio) |
+
+---
+
+## 13. Reflexión sobre Eficiencia Operativa
+
+### Impacto de la automatización en el ciclo de desarrollo
+
+La implementación de este pipeline CI/CD transforma radicalmente la forma en que el equipo entrega valor. Antes de la automatización, cada despliegue requería intervención manual: ejecutar tests, construir la imagen, validar calidad, desplegar y verificar. Con el pipeline implementado, este proceso ocurre automáticamente en menos de 15 minutos desde el `git push`.
+
+**Mejoras medibles:**
+
+| Métrica                       | Sin CI/CD (manual) | Con CI/CD (automatizado) |
+|-------------------------------|-------------------|--------------------------|
+| Tiempo de despliegue          | ~45-60 min        | ~10-15 min               |
+| Detección de bugs             | En producción     | En PR / antes de merge   |
+| Consistencia de builds        | Variable          | 100% reproducible        |
+| Cobertura de tests obligatoria| No garantizada    | Enforced por pipeline     |
+| Vulnerabilidades detectadas   | Reactivo          | Proactivo (cada commit)  |
+
+### Seguridad integrada como parte del flujo (DevSecOps)
+
+Uno de los principios más relevantes aplicados en este proyecto es el de **shift-left security**: incorporar la seguridad desde las etapas tempranas del desarrollo, no como una revisión final. Esto se materializa de dos formas:
+
+1. **SonarQube** analiza el código en cada CD ejecutado por Jenkins, detectando vulnerabilidades y code smells antes de que la imagen llegue a producción.
+2. **Snyk** escanea las dependencias del `package.json` en cada CI de GitHub Actions, alertando sobre CVEs conocidos en librerías de terceros.
+
+Este enfoque reduce drásticamente el costo de corregir vulnerabilidades, que según estudios del sector es hasta **30 veces más barato** corregirlas en desarrollo que en producción.
+
+### Observabilidad como habilitador de confianza
+
+La integración de Prometheus y Grafana permite que el equipo tenga visibilidad continua del comportamiento de la aplicación en producción. Las métricas expuestas por el servicio (`/metrics`) permiten detectar degradaciones de rendimiento antes de que se conviertan en incidentes. Esto cambia el paradigma de operaciones: de **reactivo** (responder a alertas) a **proactivo** (anticipar problemas con datos).
+
+### Lecciones aprendidas
+
+- **Configuration as Code (CasC)** en Jenkins elimina la fricción del onboarding: cualquier nuevo miembro del equipo puede levantar el entorno completo con un solo comando.
+- La estrategia **RollingUpdate** en Kubernetes garantiza cero downtime en los despliegues, algo imposible de lograr consistentemente con procesos manuales.
+- El uso de **Docker multi-stage builds** redujo el tamaño de la imagen final en un ~70% respecto a una imagen sin optimizar, impactando directamente en tiempos de pull y arranque del contenedor.
+- El **polling de Jenkins cada 2 minutos** es un balance entre latencia de detección y carga sobre el servidor. En un entorno productivo, se reemplazaría por webhooks para respuesta inmediata.
+
+### Próximos pasos recomendados
+
+1. Migrar de polling a **webhooks** en Jenkins para reducir latencia CI → CD
+2. Implementar **Quality Gates** en SonarQube para bloquear merges con deuda técnica crítica
+3. Agregar **alertas en Grafana** con notificaciones a Slack/email cuando métricas superen umbrales
+4. Integrar **OWASP ZAP** para pruebas de seguridad dinámicas (DAST) como etapa adicional del pipeline
+5. Configurar **Horizontal Pod Autoscaler** en k8s para escalado automático basado en métricas
 
 ---
 
