@@ -40,9 +40,6 @@ jobs:
                   credentials('')
                 }
                 branches('*/main', '*/develop')
-                extensions {
-                  wipeOutWorkspace()
-                }
               }
             }
             scriptPath('lab3-reatiltech-app/Jenkinsfile')
