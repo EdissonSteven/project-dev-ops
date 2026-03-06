@@ -115,19 +115,15 @@ pipeline {
         stage('Deploy') {
         // ──────────────────────────────────────────
             steps {
-                echo '🚀 Desplegando nueva versión del product-service...'
+                echo '🚀 Desplegando con Ansible...'
                 sh """
-                    docker stop retailtech-product-service || true
-                    docker rm   retailtech-product-service || true
-                    docker run -d \
-                        --name retailtech-product-service \
-                        --network ${COMPOSE_NET} \
-                        -p 3000:3000 \
-                        -e NODE_ENV=production \
-                        -e PORT=3000 \
-                        ${LOCAL_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    ansible-playbook ansible/deploy.yml \
+                        -i ansible/inventory.ini \
+                        -e "image_tag=${IMAGE_TAG}" \
+                        -e "registry=${LOCAL_REGISTRY}" \
+                        -e "compose_net=${COMPOSE_NET}"
                 """
-                echo '✅ Deployment completado'
+                echo '✅ Deployment completado via Ansible'
             }
         }
 

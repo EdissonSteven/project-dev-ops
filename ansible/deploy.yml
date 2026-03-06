@@ -1,0 +1,39 @@
+---
+- name: Deploy RetailTech Product Service
+  hosts: local
+  gather_facts: false
+
+  vars:
+    container_name: retailtech-product-service
+    image: "{{ registry }}/retailtech/product-service:{{ image_tag }}"
+    network: "{{ compose_net }}"
+    port: "3000"
+
+  tasks:
+    - name: Stop existing container
+      command: docker stop {{ container_name }}
+      ignore_errors: true
+
+    - name: Remove existing container
+      command: docker rm {{ container_name }}
+      ignore_errors: true
+
+    - name: Start new container
+      command: >
+        docker run -d
+        --name {{ container_name }}
+        --network {{ network }}
+        -p {{ port }}:{{ port }}
+        -e NODE_ENV=production
+        -e PORT={{ port }}
+        {{ image }}
+
+    - name: Verify container is running
+      command: docker inspect --format="{{ '{{' }}.State.Running{{ '}}' }}" {{ container_name }}
+      register: container_state
+
+    - name: Assert container is running
+      assert:
+        that: container_state.stdout == "true"
+        fail_msg: "Container {{ container_name }} failed to start"
+        success_msg: "Container {{ container_name }} is running successfully"
