@@ -24,7 +24,7 @@ scrape_configs:
   - job_name: 'product-service'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['product-service:3000']
+      - targets: ['retailtech-product-service:3000']
         labels:
           service: 'product-service'
           environment: 'production'

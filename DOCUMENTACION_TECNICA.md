@@ -15,14 +15,15 @@
 3. [Microservicio: Product Service](#3-microservicio-product-service)
 4. [Pipeline CI — GitHub Actions](#4-pipeline-ci--github-actions)
 5. [Pipeline CD — Jenkins](#5-pipeline-cd--jenkins)
-6. [Infraestructura con Docker Compose](#6-infraestructura-con-docker-compose)
-7. [Seguridad — SonarQube y Snyk](#7-seguridad--sonarqube-y-snyk)
-8. [Monitoreo — Prometheus y Grafana](#8-monitoreo--prometheus-y-grafana)
-9. [Despliegue en Kubernetes](#9-despliegue-en-kubernetes)
-10. [Archivos de Configuración](#10-archivos-de-configuración)
-11. [Flujo Completo CI/CD](#11-flujo-completo-cicd)
-12. [Acceso a los Servicios](#12-acceso-a-los-servicios)
-13. [Reflexión sobre Eficiencia Operativa](#13-reflexión-sobre-eficiencia-operativa)
+6. [Despliegue con Ansible](#6-despliegue-con-ansible)
+7. [Infraestructura con Docker Compose](#7-infraestructura-con-docker-compose)
+8. [Seguridad — SonarQube y Snyk](#8-seguridad--sonarqube-y-snyk)
+9. [Monitoreo — Prometheus y Grafana](#9-monitoreo--prometheus-y-grafana)
+10. [Despliegue en Kubernetes](#10-despliegue-en-kubernetes)
+11. [Archivos de Configuración](#11-archivos-de-configuración)
+12. [Flujo Completo CI/CD](#12-flujo-completo-cicd)
+13. [Acceso a los Servicios](#13-acceso-a-los-servicios)
+14. [Reflexión sobre Eficiencia Operativa](#14-reflexión-sobre-eficiencia-operativa)
 
 ---
 
@@ -48,6 +49,8 @@ Demostrar la automatización del ciclo de vida de software desde el commit hasta
 | CD Pipeline       | Jenkins (LTS)           | 2.x LTS    |
 | Registry local    | Docker Registry         | 2          |
 | Calidad de código | SonarQube Community     | Latest     |
+| Seguridad deps    | Snyk                    | —          |
+| Despliegue (CD)   | Ansible                 | 2.19+      |
 | Métricas          | Prometheus              | Latest     |
 | Visualización     | Grafana                 | Latest     |
 | Proxy reverso     | Nginx                   | Alpine     |
@@ -242,10 +245,11 @@ Checkout → Install & Test → SonarQube Analysis → Build Docker Image
 - Publica la imagen al registry local en `localhost:5000`
 - Disponible para otros servicios en la red Docker
 
-#### Stage 6: Deploy
-- Detiene y elimina el contenedor anterior (si existe)
-- Lanza el nuevo contenedor en la red `devops-network`
-- Expone el puerto 3000
+#### Stage 6: Deploy (via Ansible)
+- Invoca el playbook `ansible/deploy.yml` pasando variables dinámicas desde Jenkins
+- Ansible detiene y elimina el contenedor anterior de forma idempotente
+- Lanza el nuevo contenedor en la red `devops-network` con el tag de imagen generado
+- Verifica activamente que el contenedor quedó en estado `running` antes de continuar
 
 #### Stage 7: Smoke Tests
 - Espera hasta 30 segundos (10 reintentos × 3s) a que el servicio arranque
@@ -262,7 +266,80 @@ Checkout → Install & Test → SonarQube Analysis → Build Docker Image
 
 ---
 
-## 6. Infraestructura con Docker Compose
+## 6. Despliegue con Ansible
+
+**Archivos:** `ansible/deploy.yml`, `ansible/inventory.ini`
+
+Ansible reemplaza los comandos bash directos en el stage `Deploy` del Jenkinsfile, aportando declaratividad, idempotencia y verificación activa del despliegue.
+
+### ¿Por qué Ansible para CD?
+
+| Aspecto | Sin Ansible (bash) | Con Ansible |
+|---------|-------------------|-------------|
+| Legibilidad | Comandos encadenados con `\|\| true` | Tareas con nombre descriptivo |
+| Variables | Hardcodeadas en el script | Parametrizadas con `-e` desde Jenkins |
+| Verificación | Ninguna post-deploy | Verifica que el contenedor esté `running` |
+| Idempotencia | Parcial (`\|\| true` como parche) | `ignore_errors` explícito y controlado |
+| Reutilización | Solo en este Jenkinsfile | Playbook reutilizable desde cualquier herramienta |
+
+### Inventario (`ansible/inventory.ini`)
+
+```ini
+[local]
+localhost ansible_connection=local
+```
+
+Ansible usa `connection: local` porque Jenkins y Docker comparten el mismo socket (`/var/run/docker.sock`). No se requiere SSH.
+
+### Playbook de despliegue (`ansible/deploy.yml`)
+
+```yaml
+- name: Deploy RetailTech Product Service
+  hosts: local
+  gather_facts: false
+  vars:
+    container_name: retailtech-product-service
+    image: "{{ registry }}/retailtech/product-service:{{ image_tag }}"
+    network: "{{ compose_net }}"
+    port: "3000"
+  tasks:
+    - name: Stop existing container    # idempotente
+    - name: Remove existing container  # idempotente
+    - name: Start new container        # docker run con imagen versionada
+    - name: Verify container is running
+    - name: Assert container is running # falla el pipeline si no levantó
+```
+
+### Invocación desde Jenkins
+
+```groovy
+sh """
+    ansible-playbook ansible/deploy.yml \\
+        -i ansible/inventory.ini \\
+        -e "image_tag=${IMAGE_TAG}" \\
+        -e "registry=${LOCAL_REGISTRY}" \\
+        -e "compose_net=${COMPOSE_NET}"
+"""
+```
+
+Las variables `IMAGE_TAG`, `LOCAL_REGISTRY` y `COMPOSE_NET` se inyectan dinámicamente desde el entorno de Jenkins, haciendo el playbook completamente reutilizable entre entornos.
+
+### Instalación de Ansible en Jenkins
+
+Ansible se instala directamente en la imagen de Jenkins (`jenkins/Dockerfile`):
+
+```dockerfile
+RUN apt-get update && apt-get install -y \
+    curl git docker.io \
+    && apt-get install -y ansible \
+    && rm -rf /var/lib/apt/lists/*
+```
+
+Esto garantiza que `ansible-playbook` está disponible como comando en todos los builds.
+
+---
+
+## 7. Infraestructura con Docker Compose
 
 **Archivo:** `docker-compose.yml`
 
@@ -294,7 +371,7 @@ Todos los servicios comparten la red interna `devops-network` (bridge).
 
 ---
 
-## 7. Seguridad — SonarQube y Snyk
+## 8. Seguridad — SonarQube y Snyk
 
 ### 7.1 SonarQube — Análisis estático de código
 
@@ -352,7 +429,7 @@ Snyk analiza el archivo `package.json` para detectar vulnerabilidades conocidas 
 
 ---
 
-## 8. Monitoreo — Prometheus y Grafana
+## 9. Monitoreo — Prometheus y Grafana
 
 **Archivo:** `prometheus/prometheus.yml`
 
@@ -382,7 +459,7 @@ La aplicación expone métricas nativas de Prometheus en `/metrics`:
 
 ---
 
-## 9. Despliegue en Kubernetes
+## 10. Despliegue en Kubernetes
 
 **Carpeta:** `k8s/`
 
@@ -429,7 +506,7 @@ kubectl get svc -n retailtech
 
 ---
 
-## 10. Archivos de Configuración
+## 11. Archivos de Configuración
 
 Todos los archivos de configuración están incluidos en el repositorio:
 
@@ -456,8 +533,12 @@ project-dev-ops/
 │   ├── service.yaml                   # ClusterIP service
 │   └── ingress.yaml                   # Ingress Nginx
 │
+├── ansible/
+│   ├── deploy.yml                     # Playbook de despliegue del contenedor
+│   └── inventory.ini                  # Inventario (localhost connection local)
+│
 ├── jenkins/
-│   ├── Dockerfile                     # Jenkins personalizado con plugins
+│   ├── Dockerfile                     # Jenkins personalizado con plugins + Ansible
 │   ├── casc.yaml                      # Jenkins Configuration as Code
 │   └── jobs/
 │       └── product-service-cd/        # Definición del job (generado por CasC)
@@ -481,7 +562,7 @@ project-dev-ops/
 
 ---
 
-## 11. Flujo Completo CI/CD
+## 12. Flujo Completo CI/CD
 
 El siguiente diagrama muestra el flujo de extremo a extremo:
 
@@ -507,7 +588,7 @@ El siguiente diagrama muestra el flujo de extremo a extremo:
                     │  ③ SonarQube    │  → http://localhost:9000
                     │  ④ Docker Build │  → localhost:5000/retailtech/product-service
                     │  ⑤ Push         │  → registry local
-                    │  ⑥ Deploy       │  → contenedor retailtech-product-service
+                    │  ⑥ Deploy       │  → Ansible playbook → contenedor retail-product-service
                     │  ⑦ Smoke Tests  │  → /health + /api/products
                     └────────┬────────┘
                              │  CD exitoso ✅
@@ -530,7 +611,7 @@ El siguiente diagrama muestra el flujo de extremo a extremo:
 
 ---
 
-## 12. Acceso a los Servicios
+## 13. Acceso a los Servicios
 
 Una vez ejecutado `docker compose up -d`:
 
@@ -549,7 +630,7 @@ Una vez ejecutado `docker compose up -d`:
 
 ---
 
-## 13. Reflexión sobre Eficiencia Operativa
+## 14. Reflexión sobre Eficiencia Operativa
 
 ### Impacto de la automatización en el ciclo de desarrollo
 
